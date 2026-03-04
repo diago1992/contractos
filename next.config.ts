@@ -17,7 +17,11 @@ const nextConfig: NextConfig = {
     ],
   },
   // Mark server-only packages as external for API routes
-  serverExternalPackages: ["pdf-parse", "@slack/web-api"],
+  serverExternalPackages: ["pdf-parse", "@slack/web-api", "@anthropic-ai/sdk"],
+  // Optimize tree-shaking for large client packages
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts"],
+  },
 };
 
 export default nextConfig;

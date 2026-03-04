@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Upload, FileText, Menu, X, Shield, Settings, BarChart3, Calendar, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useState } from 'react';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 interface SidebarProps {
   className?: string;
@@ -27,16 +27,8 @@ const bottomNavigation = [
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase.from('users').select('role').eq('id', user.id).single()
-        .then(({ data }) => { if (data) setUserRole(data.role); });
-    });
-  }, []);
+  const { data: currentUser } = useCurrentUser();
+  const userRole = currentUser?.role ?? null;
 
   return (
     <>

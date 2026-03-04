@@ -17,34 +17,18 @@ export async function GET() {
 
   const admin = createAdminClient();
 
-  // Fetch all active (non-deleted) contracts
-  const { data: contracts } = await admin
-    .from('contracts')
-    .select('id, status, document_type, expiry_date, created_at')
-    .is('deleted_at', null);
+  // Fetch all data in parallel
+  const [contractsRes, termsRes, riskFlagsRes, obligationsRes] = await Promise.all([
+    admin.from('contracts').select('id, status, document_type, expiry_date, created_at').is('deleted_at', null),
+    admin.from('commercial_terms').select('contract_id, amount, created_at'),
+    admin.from('risk_flags').select('severity'),
+    admin.from('obligations').select('status'),
+  ]);
 
-  const allContracts = contracts ?? [];
-
-  // Fetch commercial terms for value computation
-  const { data: terms } = await admin
-    .from('commercial_terms')
-    .select('contract_id, amount, created_at');
-
-  const allTerms = terms ?? [];
-
-  // Fetch risk flags
-  const { data: riskFlags } = await admin
-    .from('risk_flags')
-    .select('severity');
-
-  const allRisks = riskFlags ?? [];
-
-  // Fetch obligations
-  const { data: obligations } = await admin
-    .from('obligations')
-    .select('status');
-
-  const allObligations = obligations ?? [];
+  const allContracts = contractsRes.data ?? [];
+  const allTerms = termsRes.data ?? [];
+  const allRisks = riskFlagsRes.data ?? [];
+  const allObligations = obligationsRes.data ?? [];
 
   // --- Status Breakdown ---
   const statusCounts: Record<string, number> = {};
@@ -130,5 +114,7 @@ export async function GET() {
     contractValueOverTime,
     obligationBreakdown,
     totals: { totalContracts, totalValue, avgValue },
+  }, {
+    headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=60' },
   });
 }

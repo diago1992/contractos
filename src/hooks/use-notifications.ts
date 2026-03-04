@@ -15,6 +15,7 @@ export function useNotifications() {
   // Fetch recent notifications
   const { data: notifications = [], isLoading } = useQuery<Notification[]>({
     queryKey: QUERY_KEY,
+    staleTime: Infinity, // Realtime subscription handles updates
     queryFn: async () => {
       const { data, error } = await supabase
         .from('notifications')

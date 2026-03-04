@@ -6,22 +6,15 @@ import { useTheme } from 'next-themes';
 import { LogOut, User as UserIcon, Sun, Moon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { NotificationBell } from '@/components/notifications/notification-bell';
-import type { User } from '@supabase/supabase-js';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 export function Topbar() {
-  const [user, setUser] = useState<User | null>(null);
+  const { data: currentUser } = useCurrentUser();
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-    });
-  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -42,15 +35,15 @@ export function Topbar() {
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
         )}
-        {user && (
+        {currentUser && (
           <span className="text-sm text-muted-foreground hidden sm:inline">
-            {user.user_metadata?.full_name || user.email}
+            {currentUser.fullName || currentUser.email}
           </span>
         )}
-        {user?.user_metadata?.avatar_url ? (
+        {currentUser?.avatarUrl ? (
           <img
-            src={user.user_metadata.avatar_url}
-            alt={user.user_metadata?.full_name || 'User avatar'}
+            src={currentUser.avatarUrl}
+            alt={currentUser.fullName || 'User avatar'}
             className="h-8 w-8 rounded-full shrink-0"
           />
         ) : (
