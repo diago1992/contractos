@@ -1,10 +1,10 @@
 # ContractOS — Internal Document Management System
 
-## Product Specification v1.0
+## Product Specification v2.0
 
-**Owner:** Diago | MoneyMe  
-**Date:** March 2026  
-**Status:** Draft for Review
+**Owner:** Diago | MoneyMe
+**Date:** March 2026
+**Status:** Deployed — [contractos-omega.vercel.app](https://contractos-omega.vercel.app)
 
 ---
 
@@ -374,24 +374,23 @@ notifications
 
 ---
 
-## 10. Tech Stack
+## 10. Tech Stack (As Built)
 
-| Layer | Technology | Rationale |
-|-------|-----------|-----------|
-| Frontend | React + TypeScript + Tailwind | Standard, fast to build, reusable components |
-| Charts | Recharts or Tremor | Clean dashboard components |
-| API | FastAPI (Python) | Strong async support, great for AI pipelines |
-| Database | PostgreSQL + pgvector | Single DB for structured data + vector search |
-| Document Storage (Phase 1) | Google Drive API | Fast to set up, no permissioning overhead |
-| Document Storage (Phase 2) | Azure Blob Storage | Enterprise-grade, aligns with existing infra |
-| AI — Extraction | Claude API (Sonnet) | Best-in-class document understanding |
-| AI — Classification | Claude API (Haiku) | Fast, cheap, accurate for categorisation |
-| AI — Embeddings | OpenAI text-embedding-3-large | Strong retrieval performance |
-| AI — RAG/Query | Claude API (Sonnet) | Nuanced synthesis with citations |
-| Task Queue | Celery + Redis | Async document processing |
-| Slack | Slack Bolt SDK (Python) | Official SDK, supports interactivity |
-| Hosting | Azure App Service or Railway | Azure for prod alignment, Railway for speed |
-| Auth | Google OAuth (Phase 1) → Azure AD (Phase 2) | Matches storage migration path |
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| Frontend | Next.js 16 (App Router, Turbopack) + React 19 + TypeScript + Tailwind CSS v4 | Full-stack framework, server components + API routes |
+| UI Components | Custom shadcn/ui-style primitives (no Radix dependency) | 13 components: Button, Card, Dialog, Dropdown, Select, Badge, etc. |
+| Charts | Recharts | 6 interactive charts on analytics dashboard |
+| Database | Supabase (PostgreSQL + pgvector + Auth + Storage + RLS) | Single platform for DB, auth, file storage, and realtime |
+| Document Storage | Supabase Storage | Private bucket with authenticated access |
+| AI — Extraction | Claude Sonnet (Anthropic SDK, tool_use) | Structured extraction via function calling |
+| AI — Classification | Claude Haiku | Fast, cheap document type detection |
+| AI — Embeddings | OpenAI text-embedding-3-small + pgvector | 1536-dim vectors, cosine similarity search |
+| AI — RAG/Query | Claude Haiku | Natural language answers from contract context |
+| Slack | @slack/web-api | Push notifications, file ingestion, interactive buttons |
+| NetSuite | REST API with OAuth 1.0a TBA (HMAC-SHA256) | Vendor sync, invoice tracking |
+| Hosting | Vercel | Auto-deploy from GitHub main branch |
+| Auth | Google OAuth via Supabase Auth | Single sign-on for all MoneyMe users |
 
 ---
 
@@ -418,66 +417,53 @@ Some contracts (employment, executive compensation, M&A) need restricted access.
 
 ---
 
-## 12. Phased Rollout
+## 12. Build Status
 
-### Phase 1 — Foundation (Weeks 1–4)
+### Completed (v2.0)
 
-- Google Drive folder structure set up
-- Postgres schema deployed
-- Ingestion Agent: upload → extract → store metadata
-- Basic dashboard: contract list, detail view, search (text only)
-- Manual upload via dashboard UI
-- Slack: `#contracts-feed` notifications for new uploads
+- **Auth & RBAC** — Google OAuth via Supabase, 4 roles enforced via RLS + API checks
+- **Contract CRUD** — Upload PDF/DOCX, paginated list, detail view, soft delete
+- **AI Pipeline** — Classification (Haiku) + extraction (Sonnet tool_use) + verification workflow
+- **Dashboard** — Stats cards, search, filters, pagination, bulk actions
+- **Contract Detail** — Summary, commercial terms, obligations, risk flags, vendor & spend, audit log
+- **Obligation Tracking** — Inline status management, bulk updates, overdue highlighting
+- **Analytics Dashboard** — 6 recharts visualizations (status, type, expiry, risk, value, obligations)
+- **Renewal Calendar** — Month grid with color-coded contract chips
+- **Counterparty Map** — Contracts grouped by counterparty, searchable
+- **Semantic Search** — OpenAI embeddings + pgvector similarity search
+- **Query Agent (RAG)** — Natural language questions answered by Claude Haiku
+- **Slack Integration** — File ingestion, expiry notifications with interactive buttons (Renew/Expire/Snooze), weekly digest
+- **Tiered Escalation** — 30d/14d/7d/overdue with deduplication via escalation_log
+- **NetSuite Integration** — OAuth 1.0a TBA, vendor CRUD, invoice sync, spend threshold alerts
+- **User Management** — Admin role management page
+- **Security Hardening** — Auth on all routes, input sanitization, role escalation prevention, focus traps, keyboard nav
+- **Deployment** — Vercel auto-deploy from GitHub, live at contractos-omega.vercel.app
 
-**Success criteria:** 50+ existing contracts uploaded, extracted, and verified. Team can find any contract in < 30 seconds.
+### Future Enhancements
 
-### Phase 2 — Intelligence (Weeks 5–8)
-
-- Monitor Agent: renewal alerts, expiry tracking, escalation chains
-- Slack push: renewal reminders, weekly digest, risk alerts
-- Slack commands: `/contract search`, `/contract renewals`
-- Dashboard analytics: spend summary, renewal calendar, counterparty map
-- Semantic search via embeddings
-- Human-in-the-loop verification workflow
-
-**Success criteria:** Zero missed renewal deadlines. Leadership has real-time visibility into commercial exposure.
-
-### Phase 3 — Scale (Weeks 9–12)
-
-- Query Agent: natural language questions across the contract corpus
-- Bulk upload tool (drag-and-drop 50+ files at once)
+- Contract generation from templates using AI
+- Clause library with approved clause catalogue
+- Bulk upload (50+ files at once)
 - Amendment tracking (link amendments to parent contracts)
-- Approval workflows via Slack interactive messages
-- Obligation tracker with recurring reminders
-- API for integration with other MoneyMe internal tools (e.g., finance system, CRM)
-
-**Success criteria:** Query Agent accurately answers 80%+ of contract questions without requiring manual lookup.
-
-### Phase 4 — Enterprise (Months 4–6)
-
-- Migrate storage from Google Drive → Azure Blob
-- Azure AD SSO integration
-- Row-level security in Postgres
-- Contract generation: draft new NDAs/MSAs from templates using AI
-- Clause library: catalogue of approved clauses for quick insertion
-- Multi-department workspace support with department-specific compliance tracking
+- Rate limiting on API routes
+- Error boundaries on analytics/calendar pages
+- Dark mode refinements
 
 ---
 
-## 13. Cost Estimate (Phase 1–2)
+## 13. Cost Estimate
 
 | Item | Monthly Cost (AUD) |
 |------|-------------------|
-| Google Workspace (if not already on it) | $0 (existing) |
-| PostgreSQL (managed, e.g., Supabase or Railway) | ~$40 |
-| Claude API (Sonnet — ~500 docs × $0.10/extraction) | ~$50 |
-| OpenAI Embeddings (500 docs × $0.01) | ~$5 |
-| Hosting (Railway or small Azure App Service) | ~$50 |
-| Redis (managed) | ~$15 |
+| Supabase (Free tier, then Pro ~$25/month) | ~$25 |
+| Vercel (Free tier for testing, Pro ~$20/month) | ~$20 |
+| Claude API (Sonnet extraction + Haiku queries) | ~$50 |
+| OpenAI Embeddings (text-embedding-3-small) | ~$5 |
 | Slack (existing workspace) | $0 |
-| **Total Phase 1–2** | **~$160/month** |
+| NetSuite (existing instance) | $0 |
+| **Total** | **~$100/month** |
 
-Phase 3–4 costs scale with usage but likely remain under $500/month until hitting thousands of documents.
+Costs scale with document volume. Expect under $300/month for up to 1,000 contracts.
 
 ---
 
@@ -505,9 +491,9 @@ Phase 3–4 costs scale with usage but likely remain under $500/month until hitt
 
 ## 16. Next Steps
 
-1. Review and sign off this spec
-2. Set up Google Drive folder structure
-3. Spin up Postgres + basic API
-4. Build and test Ingestion Agent with 10 sample contracts
-5. Deploy MVP dashboard
-6. Begin bulk upload of existing contracts
+1. Team testing via [contractos-omega.vercel.app](https://contractos-omega.vercel.app)
+2. Upload existing contract portfolio (PDF/DOCX)
+3. Review AI extractions and verify accuracy
+4. Configure NetSuite sandbox credentials for vendor sync testing
+5. Set up Vercel Cron for automated escalation and weekly digest
+6. Gather feedback and prioritise v3 enhancements

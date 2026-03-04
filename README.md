@@ -1,15 +1,18 @@
 # ContractOS
 
-Internal contract management system for MoneyMe. AI-powered document ingestion, structured metadata extraction, vendor/spend tracking, and proactive alerting.
+AI-powered contract management platform for MoneyMe. Upload contracts, auto-extract metadata with Claude AI, track obligations and renewals, query your portfolio in natural language, and sync with NetSuite GL.
+
+**Live:** [contractos-omega.vercel.app](https://contractos-omega.vercel.app)
 
 ## Tech Stack
 
 - **Framework:** Next.js 16 (App Router, Turbopack)
-- **Database:** Supabase (PostgreSQL + Auth + Storage + Realtime)
-- **AI:** Claude Sonnet (extraction), Claude Haiku (classification), OpenAI (embeddings)
+- **Database:** Supabase (PostgreSQL + Auth + Storage + RLS)
+- **AI:** Claude Sonnet (extraction), Claude Haiku (classification + query agent), OpenAI (embeddings)
 - **UI:** React 19, Tailwind CSS v4, custom shadcn/ui-style components
 - **Charts:** Recharts
-- **Integrations:** Slack (push notifications, slash commands, file ingestion), NetSuite (vendor sync, invoice tracking)
+- **Integrations:** Slack (notifications, file ingestion, interactive buttons), NetSuite (vendor sync, invoice tracking)
+- **Hosting:** Vercel (auto-deploy from main)
 
 ## Features
 
@@ -17,59 +20,71 @@ Internal contract management system for MoneyMe. AI-powered document ingestion, 
 - AI classification (10 document types) and full metadata extraction
 - Human-in-the-loop verification workflow
 - Dashboard with search, filters, pagination, bulk actions
-- Contract detail view with commercial terms, obligations, vendor/spend, audit log
+- Contract detail view with commercial terms, obligations, risk flags, vendor/spend, audit log
 - Obligation tracking with inline status management
-- Analytics dashboard (6 charts)
-- NetSuite vendor sync and invoice spend tracking
-- Tiered renewal escalation alerts
+- Analytics dashboard (6 interactive charts)
+- Renewal calendar with month grid view
+- Counterparty map grouping contracts by counterparty
+- Natural language query agent (RAG with Claude Haiku)
 - Semantic search with pgvector embeddings
-- Natural language query agent (RAG)
+- NetSuite vendor sync and invoice spend tracking with threshold alerts
+- Tiered renewal escalation (30d/14d/7d/overdue) with Slack interactive buttons
+- Weekly portfolio digest to Slack
 - Role-based access control (viewer, contributor, reviewer, admin)
-- Realtime updates via Supabase channels
+- Google OAuth sign-in
+
+## Pages
+
+| Route | Description |
+|-------|-------------|
+| `/login` | Google OAuth sign-in |
+| `/dashboard` | Contract list, stats, search, query agent |
+| `/contracts/[id]` | Contract detail — summary, terms, obligations, risk flags, vendor & spend, audit log |
+| `/analytics` | 6 interactive charts (status, type, expiry, risk, value, obligations) |
+| `/calendar` | Renewal calendar (month grid with color-coded chips) |
+| `/counterparties` | Contracts grouped by counterparty |
+| `/users` | Admin user role management |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 18+
 - npm
-- Supabase project (with Auth, Storage, and Realtime enabled)
+- Supabase project
 - Anthropic API key
 
 ### Setup
 
 ```bash
 # Clone and install
+git clone https://github.com/diago1992/contractos.git
+cd contractos
 npm install
 
-# Copy environment variables
+# Configure environment
 cp .env.example .env.local
-# Fill in all values in .env.local
+# Fill in your API keys and Supabase credentials
 
-# Apply database migrations (via Supabase dashboard SQL editor or CLI)
-# Run in order: 001, 002, 003, 004, 005
+# Apply database migrations (via Supabase SQL Editor, in order)
 # Files are in supabase/migrations/
-
-# Seed sample data (optional)
-npx tsx scripts/seed-sample-data.ts
 
 # Start dev server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The first user to sign in is auto-promoted to admin.
-
 ### Database Migrations
 
-Apply migrations in order via the Supabase SQL editor or `supabase db push`:
+Apply in order via the Supabase SQL Editor:
 
 | File | Purpose |
 |------|---------|
-| `001_initial_schema.sql` | Core schema: contracts, terms, obligations, risks, tags, links, audit, notifications |
+| `001_initial_schema.sql` | Core schema: contracts, terms, obligations, risks, tags, links, audit, notifications, RLS |
 | `002_storage_bucket.sql` | Private contracts storage bucket |
 | `003_v2_vendors_invoices_obligations.sql` | Vendors, invoices, contract-vendor join, obligation enhancements |
-| `004_add_document_types_column.sql` | Fix: adds missing `document_types` array column |
-| `005_semantic_search.sql` | pgvector extension, contract chunks, embeddings, escalation tracking |
+| `004_add_document_types_column.sql` | Adds `document_types` array column |
+| `005_semantic_search.sql` | pgvector extension, contract chunks, embeddings, escalation tracking, match function |
+| `006_security_hardening.sql` | Role escalation prevention trigger, escalation_log DELETE policy |
 
 ### Environment Variables
 
@@ -83,6 +98,60 @@ Optional integrations (gracefully degrade when not configured):
 - **Slack:** `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`, `SLACK_SIGNING_SECRET`
 - **NetSuite:** `NETSUITE_ACCOUNT_ID`, `NETSUITE_CONSUMER_KEY/SECRET`, `NETSUITE_TOKEN_ID/SECRET`
 - **Semantic search:** `OPENAI_API_KEY`
+
+### Backfill Embeddings (Optional)
+
+If you have existing contracts and want semantic search:
+
+```bash
+npx tsx scripts/backfill-embeddings.ts
+```
+
+## Deployment
+
+Hosted on **Vercel** with auto-deploy from `main`.
+
+1. Import repo on [vercel.com](https://vercel.com)
+2. Add all environment variables from `.env.example`
+3. Set `NEXT_PUBLIC_APP_URL` to your Vercel URL
+4. Deploy
+
+### Post-deploy Supabase config:
+- Set **Site URL** to your Vercel URL (Authentication > URL Configuration)
+- Add `https://your-app.vercel.app/**` to **Redirect URLs**
+
+### Post-deploy Slack config:
+- **Interactivity Request URL:** `https://your-app.vercel.app/api/slack/interactions`
+- **Event Subscriptions Request URL:** `https://your-app.vercel.app/api/slack/events`
+
+## API Routes
+
+### Contracts
+- `GET /api/contracts` — List (paginated, filterable)
+- `POST /api/contracts` — Upload
+- `GET/PATCH/DELETE /api/contracts/[id]` — Detail, update, soft delete
+- `POST /api/contracts/[id]/reprocess` — Re-run AI extraction
+- `GET/POST/DELETE /api/contracts/[id]/vendor` — Link/unlink vendor
+
+### Search & Query
+- `GET /api/search?q=...` — Semantic search
+- `POST /api/query` — Natural language query agent
+
+### Vendors & Invoices
+- `GET/POST /api/vendors` — List/create
+- `GET/PATCH /api/vendors/[id]` — Detail/update
+- `POST /api/vendors/[id]/sync` — Sync to NetSuite
+- `GET /api/vendors/[id]/invoices` — Pull invoices
+
+### Other
+- `PATCH /api/obligations` — Bulk update status
+- `GET /api/analytics` — Chart data
+- `GET /api/users` / `PATCH /api/users/[id]` — User management (admin)
+- `POST /api/slack/events` — Slack file uploads
+- `POST /api/slack/interactions` — Slack interactive buttons
+- `POST /api/cron/expiring-contracts` — Tiered escalation
+- `POST /api/cron/weekly-digest` — Weekly Slack digest
+- `POST /api/cron/sync-invoices` — NetSuite invoice sync
 
 ## Scripts
 
@@ -98,19 +167,26 @@ npm run lint      # ESLint
 ```
 src/
 ├── app/
-│   ├── (protected)/      # Auth-gated pages (dashboard, upload, contracts, analytics, calendar, etc.)
-│   ├── api/              # API routes (contracts, vendors, analytics, obligations, cron, slack, query)
+│   ├── (protected)/      # Auth-gated pages
+│   ├── api/              # API routes
 │   └── auth/             # OAuth callback
 ├── components/
-│   ├── ui/               # 14 shadcn-style primitives (no Radix dependency)
-│   ├── contracts/        # Contract-specific components (vendor panel, invoice table, etc.)
-│   ├── layout/           # Sidebar, topbar, app layout
-│   └── ...               # Search, upload, notifications
-├── hooks/                # React Query hooks for all data fetching
+│   ├── ui/               # 13 shadcn-style primitives (no Radix)
+│   ├── contracts/        # Vendor panel, invoice table, spend progress, dialogs
+│   ├── search/           # Search bar, semantic results, query panel
+│   └── layout/           # Sidebar, app layout
+├── hooks/                # React Query hooks
 ├── lib/
-│   ├── agents/           # AI pipeline (parser, classifier, extractor, ingestion orchestrator)
+│   ├── agents/           # AI pipeline (parser, classifier, extractor, ingestion)
 │   ├── netsuite/         # NetSuite OAuth 1.0a auth + vendor API
 │   ├── supabase/         # Client, server, proxy helpers
+│   ├── embeddings.ts     # OpenAI embeddings + text chunking
+│   ├── slack.ts          # Slack notification helpers
 │   └── utils/            # Constants, formatters, chart colors
-└── types/                # TypeScript type definitions
+├── types/                # TypeScript types (database, contracts, analytics, netsuite)
+scripts/
+├── backfill-embeddings.ts
+└── seed-sample-data.ts
+supabase/
+└── migrations/           # 6 SQL migration files
 ```
