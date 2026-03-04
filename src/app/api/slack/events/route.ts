@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { WebClient } from '@slack/web-api';
 import { verifySlackRequest } from '@/lib/slack-verify';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -40,12 +41,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  // Respond immediately, process async
-  handleFileShared(event.file_id, event.channel_id, event.event_ts).catch(
-    (err) => {
+  // Use after() to keep the serverless function alive for background processing
+  // This responds to Slack immediately but continues executing
+  after(async () => {
+    try {
+      await handleFileShared(event.file_id, event.channel_id, event.event_ts);
+    } catch (err) {
       console.error('Slack file_shared handler failed:', err);
     }
-  );
+  });
 
   return NextResponse.json({ ok: true });
 }
@@ -187,10 +191,12 @@ async function handleFileShared(
     return;
   }
 
-  // Process contract (AI extraction pipeline)
-  processContract(contract.id).catch((err) => {
+  // Process contract (AI extraction pipeline) — awaited since we're in after()
+  try {
+    await processContract(contract.id);
+  } catch (err) {
     console.error('Contract processing failed:', err);
-  });
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
