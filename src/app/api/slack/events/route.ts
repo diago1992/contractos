@@ -12,7 +12,11 @@ export async function POST(request: Request) {
   const timestamp = request.headers.get('x-slack-request-timestamp');
   const signature = request.headers.get('x-slack-signature');
 
-  // Parse body first — url_verification doesn't need signature check
+  // Verify signature BEFORE parsing body to prevent processing forged requests
+  if (!verifySlackRequest(rawBody, timestamp, signature)) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  }
+
   let payload: SlackEventPayload;
   try {
     payload = JSON.parse(rawBody);
@@ -20,14 +24,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  // Handle Slack URL verification challenge (one-time setup)
+  // Handle Slack URL verification challenge
   if (payload.type === 'url_verification') {
     return NextResponse.json({ challenge: payload.challenge });
-  }
-
-  // Verify signature for all other requests
-  if (!verifySlackRequest(rawBody, timestamp, signature)) {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
   const event = payload.event;

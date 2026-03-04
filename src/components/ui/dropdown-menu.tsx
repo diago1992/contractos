@@ -134,19 +134,57 @@ const DropdownMenuContent = React.forwardRef<
     };
   }, [open, setOpen]);
 
-  // Close on escape
+  // Keyboard navigation: Escape, Arrow keys, Home, End
   React.useEffect(() => {
     if (!open) return;
+    const node = contentRef.current;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setOpen(false);
+        return;
+      }
+
+      if (!node) return;
+
+      const items = Array.from(
+        node.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')
+      );
+      if (items.length === 0) return;
+
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+        items[next].focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+        items[prev].focus();
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        items[0].focus();
+      } else if (e.key === "End") {
+        e.preventDefault();
+        items[items.length - 1].focus();
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, setOpen]);
+
+  // Focus first item when menu opens
+  React.useEffect(() => {
+    if (!open) return;
+    const node = contentRef.current;
+    if (!node) return;
+    requestAnimationFrame(() => {
+      const firstItem = node.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])');
+      firstItem?.focus();
+    });
+  }, [open]);
 
   if (!open) return null;
 
@@ -197,6 +235,7 @@ const DropdownMenuItem = React.forwardRef<
     <button
       ref={ref}
       role="menuitem"
+      tabIndex={-1}
       type="button"
       className={cn(
         "relative flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",

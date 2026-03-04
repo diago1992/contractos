@@ -78,20 +78,25 @@ export async function POST(request: Request) {
     if (!contractContext) {
       // Fetch contracts with their summaries and related data
       // Use ilike search on title/counterparty as a simple keyword match
+      // Sanitize keywords: strip non-alphanumeric to prevent PostgREST filter injection
       const keywords = question
-        .replace(/[?.,!;:'"()]/g, '')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
         .split(/\s+/)
         .filter((w) => w.length > 2)
         .slice(0, 3);
 
       // Try keyword match on title/counterparty first
       let contracts: typeof textResults = [];
-      const { data: textResults } = await admin
+      const safeFilter = keywords.length > 0
+        ? keywords.map((k) => `title.ilike.%${k}%,counterparty_name.ilike.%${k}%`).join(',')
+        : '';
+      const baseQuery = admin
         .from('contracts')
         .select('id, title, counterparty_name, document_type, status, effective_date, expiry_date, summary')
-        .is('deleted_at', null)
-        .or(keywords.map((k) => `title.ilike.%${k}%,counterparty_name.ilike.%${k}%`).join(','))
-        .limit(10);
+        .is('deleted_at', null);
+      const { data: textResults } = safeFilter
+        ? await baseQuery.or(safeFilter).limit(10)
+        : await baseQuery.order('created_at', { ascending: false }).limit(10);
 
       contracts = textResults ?? [];
 

@@ -5,6 +5,13 @@ import type { Database } from "@/types/database";
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
+
+    // Auth check
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     const page = parseInt(searchParams.get("page") || "1");
