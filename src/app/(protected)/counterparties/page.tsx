@@ -1,164 +1,99 @@
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Building2, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { AppLayout } from '@/components/layout/app-layout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { SearchBar } from '@/components/search/search-bar';
-import { useCounterparties, type CounterpartyGroup } from '@/hooks/use-counterparties';
-import { DOCUMENT_TYPE_LABELS, CONTRACT_STATUS_LABELS } from '@/lib/utils/constants';
-import type { DocumentType, ContractStatus } from '@/types/contracts';
+import { ColumnFilters } from '@/components/contracts/column-filters';
+import { useVendors } from '@/hooks/use-vendors';
+import { useQuery } from '@tanstack/react-query';
+import { createClient } from '@/lib/supabase/client';
+
+const filterConfig = [
+  { key: 'name', placeholder: 'Search name...', type: 'text' as const },
+  { key: 'abn', placeholder: 'ABN...', type: 'text' as const },
+  { key: 'industry', placeholder: 'Category...', type: 'text' as const },
+  { key: 'currency', placeholder: 'Currency...', type: 'text' as const },
+];
 
 export default function CounterpartiesPage() {
-  const [search, setSearch] = useState('');
-  const { data: groups, isLoading, error } = useCounterparties(search || undefined);
+  const { data: vendors, isLoading } = useVendors();
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
-  const handleSearch = useCallback((value: string) => {
-    setSearch(value);
-  }, []);
+  // Fetch contract counts per vendor
+  const supabase = createClient();
+  const { data: contractCounts } = useQuery({
+    queryKey: ['vendor-contract-counts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contract_vendors')
+        .select('vendor_id');
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      data?.forEach(cv => { counts[cv.vendor_id] = (counts[cv.vendor_id] || 0) + 1; });
+      return counts;
+    },
+  });
+
+  const filtered = useMemo(() => {
+    if (!vendors) return [];
+    return vendors.filter(v => {
+      if (filterValues.name && !v.name.toLowerCase().includes(filterValues.name.toLowerCase())) return false;
+      if (filterValues.abn && !(v.abn || '').includes(filterValues.abn)) return false;
+      if (filterValues.industry && !(v.industry || '').toLowerCase().includes(filterValues.industry.toLowerCase())) return false;
+      if (filterValues.currency && !(v.currency || '').toLowerCase().includes(filterValues.currency.toLowerCase())) return false;
+      return true;
+    });
+  }, [vendors, filterValues]);
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Counterparties</h1>
-          <p className="mt-1 text-muted-foreground">
-            Contracts grouped by counterparty.
-          </p>
-        </div>
-
-        {/* Search */}
-        <SearchBar
-          value={search}
-          onChange={handleSearch}
-          placeholder="Search counterparties..."
-          className="max-w-sm"
+    <AppLayout title="Counterparties">
+      <div className="table-wrap">
+        <ColumnFilters
+          filters={filterConfig}
+          values={filterValues}
+          onChange={(key, val) => setFilterValues(prev => ({ ...prev, [key]: val }))}
         />
-
-        {/* Error */}
-        {error && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-            {error instanceof Error ? error.message : 'An error occurred'}
-          </div>
-        )}
-
-        {/* Loading */}
-        {isLoading && (
-          <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && (groups ?? []).length === 0 && (
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <Building2 className="mb-4 h-12 w-12 text-muted-foreground/50" />
-              <p className="text-muted-foreground">
-                {search ? `No counterparties matching "${search}"` : 'No contracts with counterparty names found.'}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Counterparty groups */}
-        <div className="space-y-3">
-          {(groups ?? []).map((group) => (
-            <CounterpartyCard key={group.counterparty_name} group={group} />
-          ))}
-        </div>
-
-        {/* Summary */}
-        {!isLoading && (groups ?? []).length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            {groups!.length} counterpart{groups!.length !== 1 ? 'ies' : 'y'},{' '}
-            {groups!.reduce((sum, g) => sum + g.contracts.length, 0)} contracts
-          </p>
-        )}
+        <table>
+          <thead>
+            <tr>
+              <th>CP ID</th>
+              <th>Name</th>
+              <th>ABN</th>
+              <th>Category</th>
+              <th>Active Contracts</th>
+              <th>Currency</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  <td colSpan={7}><div className="h-8 bg-[rgba(26,46,36,0.04)] rounded animate-pulse" /></td>
+                </tr>
+              ))
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-50)', padding: 40 }}>No counterparties found</td></tr>
+            ) : (
+              filtered.map(vendor => (
+                <tr key={vendor.id}>
+                  <td style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>{vendor.id.slice(0, 8)}</td>
+                  <td>
+                    <Link href={`/counterparties/${vendor.id}`} style={{ fontWeight: 600, color: 'var(--text)' }}>
+                      {vendor.name}
+                    </Link>
+                  </td>
+                  <td style={{ fontFamily: 'var(--mono)' }}>{vendor.abn || '\u2014'}</td>
+                  <td>{vendor.industry || '\u2014'}</td>
+                  <td style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{contractCounts?.[vendor.id] || 0}</td>
+                  <td>{vendor.currency}</td>
+                  <td><span className="badge active">Active</span></td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </AppLayout>
-  );
-}
-
-function CounterpartyCard({ group }: { group: CounterpartyGroup }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const activeCount = group.contracts.filter((c) => c.status === 'active').length;
-  const expiredCount = group.contracts.filter((c) => c.status === 'expired').length;
-
-  return (
-    <Card>
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between p-4 text-left hover:bg-accent/50 transition-colors rounded-lg"
-      >
-        <div className="flex items-center gap-3">
-          <Building2 className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <div>
-            <p className="font-medium">{group.counterparty_name}</p>
-            <p className="text-sm text-muted-foreground">
-              {group.contracts.length} contract{group.contracts.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeCount > 0 && (
-            <Badge variant="secondary" className="text-xs">{activeCount} active</Badge>
-          )}
-          {expiredCount > 0 && (
-            <Badge variant="destructive" className="text-xs">{expiredCount} expired</Badge>
-          )}
-          {expanded ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-        </div>
-      </button>
-
-      {expanded && (
-        <CardContent className="border-t pt-3 pb-4">
-          <div className="space-y-2">
-            {group.contracts.map((c) => (
-              <Link
-                key={c.id}
-                href={`/contracts/${c.id}`}
-                className="flex items-center justify-between rounded-md p-2 text-sm hover:bg-accent transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="font-medium">{c.title}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {c.document_type && (
-                    <Badge variant="outline" className="text-xs">
-                      {DOCUMENT_TYPE_LABELS[c.document_type as DocumentType] ?? c.document_type}
-                    </Badge>
-                  )}
-                  <Badge
-                    variant={c.status === 'active' ? 'secondary' : c.status === 'expired' ? 'destructive' : 'default'}
-                    className="text-xs"
-                  >
-                    {CONTRACT_STATUS_LABELS[c.status as ContractStatus] ?? c.status}
-                  </Badge>
-                  {c.expiry_date && (
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(c.expiry_date).toLocaleDateString('en-AU')}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      )}
-    </Card>
   );
 }

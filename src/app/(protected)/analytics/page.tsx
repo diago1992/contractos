@@ -1,281 +1,176 @@
-'use client';
+"use client";
 
+import { useState, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useAnalytics } from '@/hooks/use-analytics';
-import { formatCurrency } from '@/lib/utils/formatters';
-import {
-  CHART_COLORS,
-  STATUS_CHART_COLORS,
-  RISK_CHART_COLORS,
-  OBLIGATION_CHART_COLORS,
-} from '@/lib/utils/chart-colors';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
+import { useAllContracts } from '@/hooks/use-contracts';
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-bold">{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ChartSkeleton() {
-  return (
-    <Card>
-      <CardHeader>
-        <Skeleton className="h-5 w-40" />
-      </CardHeader>
-      <CardContent>
-        <Skeleton className="h-64 w-full" />
-      </CardContent>
-    </Card>
-  );
-}
+const costCentres = ['All', 'Technology', 'Risk & Credit', 'Finance', 'Marketing', 'Legal', 'Operations'];
 
 export default function AnalyticsPage() {
-  const { data, isLoading } = useAnalytics();
+  const [activeCentre, setActiveCentre] = useState('All');
+  const { data: contracts, isLoading } = useAllContracts();
 
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="space-y-6">
-          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Card key={i}>
-                <CardContent className="pt-6">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="mt-2 h-8 w-32" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <ChartSkeleton key={i} />
-            ))}
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
+  const filtered = useMemo(() => {
+    if (!contracts) return [];
+    if (activeCentre === 'All') return contracts;
+    return contracts.filter(c => c.cost_centre === activeCentre);
+  }, [contracts, activeCentre]);
 
-  if (!data) {
-    return (
-      <AppLayout>
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <h2 className="text-lg font-semibold">No analytics data</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Upload contracts to see analytics.
-          </p>
-        </div>
-      </AppLayout>
-    );
-  }
+  const totalValue = filtered.reduce((sum, c) => sum + (c.annual_value || 0), 0);
+  const activeCount = filtered.filter(c => c.status === 'active').length;
+  const avgValue = filtered.length > 0 ? totalValue / filtered.length : 0;
+  const expiringCount = filtered.filter(c => {
+    if (!c.expiry_date) return false;
+    const days = (new Date(c.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+    return days >= 0 && days <= 90;
+  }).length;
+
+  const formatCurrency = (val: number) =>
+    val >= 1000000 ? `$${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `$${(val / 1000).toFixed(0)}k` : `$${val.toFixed(0)}`;
+
+  // Group by cost centre for bar chart
+  const byCentre = useMemo(() => {
+    if (!contracts) return [];
+    const map = new Map<string, { value: number; count: number }>();
+    contracts.forEach(c => {
+      const cc = c.cost_centre || 'Unassigned';
+      const cur = map.get(cc) || { value: 0, count: 0 };
+      map.set(cc, { value: cur.value + (c.annual_value || 0), count: cur.count + 1 });
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1].value - a[1].value);
+  }, [contracts]);
+
+  const maxValue = Math.max(...byCentre.map(([, d]) => d.value), 1);
+
+  // Top 5 by value
+  const topByValue = [...filtered].sort((a, b) => (b.annual_value || 0) - (a.annual_value || 0)).slice(0, 5);
+  // 5 most recent
+  const recent = [...filtered].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
+  // 5 upcoming renewals
+  const renewals = filtered
+    .filter(c => c.expiry_date && new Date(c.expiry_date) > new Date())
+    .sort((a, b) => new Date(a.expiry_date!).getTime() - new Date(b.expiry_date!).getTime())
+    .slice(0, 5);
+
+  // Contracts without vendor
+  const contractsWithoutVendor = filtered.filter(c => !c.counterparty_name).slice(0, 5);
+  // Contracts with missing info
+  const contractsMissingInfo = filtered.filter(c => !c.cost_centre || !c.mm_owner || !c.annual_value).slice(0, 5);
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+    <AppLayout title="Analytics">
+      {/* Cost centre filter */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+        {costCentres.map(cc => (
+          <button
+            key={cc}
+            className={activeCentre === cc ? 'btn-primary' : 'btn-secondary'}
+            onClick={() => setActiveCentre(cc)}
+          >
+            {cc}
+          </button>
+        ))}
+      </div>
 
-        {/* Summary stat cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard label="Total Contracts" value={data.totals.totalContracts.toLocaleString()} />
-          <StatCard label="Total Value" value={formatCurrency(data.totals.totalValue) ?? '$0'} />
-          <StatCard label="Average Value" value={formatCurrency(data.totals.avgValue) ?? '$0'} />
+      {/* KPI cards */}
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-label">Total Contract Value</div>
+          <div className="stat-value">{formatCurrency(totalValue)}</div>
         </div>
+        <div className="stat-card">
+          <div className="stat-label">Active Contracts</div>
+          <div className="stat-value">{activeCount}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Average Value</div>
+          <div className="stat-value">{formatCurrency(avgValue)}</div>
+        </div>
+        <div className="stat-card warn">
+          <div className="stat-label">Expiring (90 days)</div>
+          <div className="stat-value">{expiringCount}</div>
+        </div>
+      </div>
 
-        {/* Charts grid */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Status Breakdown (Pie) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Contracts by Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.statusBreakdown.length === 0 ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">No data</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={data.statusBreakdown}
-                      dataKey="count"
-                      nameKey="label"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label={({ name, value }: { name?: string; value?: number }) => `${name ?? ''} (${value ?? 0})`}
-                    >
-                      {data.statusBreakdown.map((entry) => (
-                        <Cell
-                          key={entry.status}
-                          fill={STATUS_CHART_COLORS[entry.status] || CHART_COLORS[0]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+      {/* Contract Value by Cost Centre */}
+      <div className="panel" style={{ marginBottom: 20 }}>
+        <div className="panel-title">Contract Value by Cost Centre</div>
+        {isLoading ? (
+          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-8 bg-[rgba(26,46,36,0.04)] rounded animate-pulse" />)}</div>
+        ) : (
+          <div>
+            {byCentre.map(([name, data]) => (
+              <div key={name} className="bar-row">
+                <span className="bar-label">{name}</span>
+                <div className="bar-track">
+                  <div className="bar-fill" style={{ width: `${(data.value / maxValue) * 100}%` }} />
+                </div>
+                <span className="bar-value">{formatCurrency(data.value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-          {/* Type Distribution (Bar) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Contracts by Type</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.typeDistribution.length === 0 ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">No data</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={data.typeDistribution}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={80} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="count" name="Contracts">
-                      {data.typeDistribution.map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+      {/* 3-column grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 20 }}>
+        <div className="panel">
+          <div className="panel-title">Top 5 Contract Values</div>
+          {topByValue.map(c => (
+            <div key={c.id} className="spend-row">
+              <span className="spend-name">{c.counterparty_name || c.title}</span>
+              <span className="spend-pct" style={{ color: 'var(--text)' }}>{formatCurrency(c.annual_value || 0)}</span>
+            </div>
+          ))}
+          {topByValue.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-50)' }}>No data</p>}
+        </div>
+        <div className="panel">
+          <div className="panel-title">Recently Added</div>
+          {recent.map(c => (
+            <div key={c.id} className="act-item">
+              <div className="act-dot" />
+              <span className="act-text">{c.title}</span>
+            </div>
+          ))}
+          {recent.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-50)' }}>No data</p>}
+        </div>
+        <div className="panel">
+          <div className="panel-title">Upcoming Renewals</div>
+          {renewals.map(c => (
+            <div key={c.id} className="act-item">
+              <div className="act-dot warn" />
+              <span className="act-text">{c.counterparty_name || c.title}</span>
+              <span className="act-time">{c.expiry_date}</span>
+            </div>
+          ))}
+          {renewals.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-50)' }}>No data</p>}
+        </div>
+      </div>
 
-          {/* Expiry Timeline (Bar) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Expiry Timeline (12 months)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={data.expiryTimeline}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={80} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="Expiring" fill="#f59e0b" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Risk Summary (Horizontal Bar) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Risk Flags by Severity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.riskSummary.length === 0 ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">No risk flags</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={data.riskSummary} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis dataKey="label" type="category" width={80} />
-                    <Tooltip />
-                    <Bar dataKey="count" name="Flags">
-                      {data.riskSummary.map((entry) => (
-                        <Cell
-                          key={entry.severity}
-                          fill={RISK_CHART_COLORS[entry.severity] || CHART_COLORS[0]}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Contract Value Over Time (Line) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Contract Value Over Time</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.contractValueOverTime.length === 0 ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">No value data</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={data.contractValueOverTime}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={80} />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      name="Value"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Obligation Breakdown (Pie) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Obligations by Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {data.obligationBreakdown.length === 0 ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">No obligations</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={data.obligationBreakdown}
-                      dataKey="count"
-                      nameKey="label"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label={({ name, value }: { name?: string; value?: number }) => `${name ?? ''} (${value ?? 0})`}
-                    >
-                      {data.obligationBreakdown.map((entry) => (
-                        <Cell
-                          key={entry.status}
-                          fill={OBLIGATION_CHART_COLORS[entry.status] || CHART_COLORS[0]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+      {/* 2-column grid */}
+      <div className="dash-row equal">
+        <div className="panel">
+          <div className="panel-title">Contracts Without Linked Vendor</div>
+          {contractsWithoutVendor.map(c => (
+            <div key={c.id} className="act-item">
+              <div className="act-dot danger" />
+              <span className="act-text">{c.title}</span>
+            </div>
+          ))}
+          {contractsWithoutVendor.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-50)' }}>All contracts have vendors</p>}
+        </div>
+        <div className="panel">
+          <div className="panel-title">Contracts With Missing Information</div>
+          {contractsMissingInfo.map(c => (
+            <div key={c.id} className="act-item">
+              <div className="act-dot warn" />
+              <span className="act-text">{c.title}</span>
+              <span className="act-time">
+                {[!c.cost_centre && 'Cost Centre', !c.mm_owner && 'Owner', !c.annual_value && 'Value'].filter(Boolean).join(', ')}
+              </span>
+            </div>
+          ))}
+          {contractsMissingInfo.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-50)' }}>All contracts have complete info</p>}
         </div>
       </div>
     </AppLayout>

@@ -61,6 +61,10 @@ export type InvoiceStatus =
   | 'voided'
   | 'cancelled';
 
+export type ObligationRisk = 'High' | 'Medium' | 'Low';
+
+export type ObligationCategory = 'payment' | 'notice' | 'compliance' | 'reporting' | 'operational' | 'legal';
+
 // ---------------------------------------------------------------------------
 // Main Entity Interfaces (mirror database tables)
 // ---------------------------------------------------------------------------
@@ -101,6 +105,11 @@ export interface Contract {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  cost_centre: string | null;
+  annual_value: number | null;
+  mm_owner: string | null;
+  on_file: boolean;
+  notice_deadline: string | null;
 }
 
 export interface CommercialTerm {
@@ -125,6 +134,8 @@ export interface Obligation {
   assigned_to: string | null;
   created_at: string;
   updated_at: string;
+  risk: ObligationRisk | null;
+  category: ObligationCategory | null;
 }
 
 export interface RiskFlag {
@@ -186,6 +197,35 @@ export interface Vendor {
   sync_error: string | null;
   created_at: string;
   updated_at: string;
+  legal_name: string | null;
+  trading_name: string | null;
+  industry: string | null;
+  abn: string | null;
+  gst_registered: boolean;
+  website: string | null;
+  logo_url: string | null;
+  currency: string;
+  payment_terms: string | null;
+  default_gl_code: string | null;
+  default_tax_code: string | null;
+  contact_name: string | null;
+  contact_title: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  address_street: string | null;
+  address_city: string | null;
+  address_country: string;
+  bank_account_name: string | null;
+  bank_bsb: string | null;
+  bank_account_number: string | null;
+  bank_name: string | null;
+  bank_verified: boolean;
+  bank_swift: string | null;
+  bank_iban: string | null;
+  ai_description: string | null;
+  esg_data: Record<string, unknown>;
+  esg_summary: string | null;
+  esg_updated_at: string | null;
 }
 
 export interface ContractVendor {
@@ -210,6 +250,17 @@ export interface Invoice {
   due_date: string | null;
   netsuite_data: Record<string, unknown> | null;
   last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+  date_paid: string | null;
+}
+
+export interface Discussion {
+  id: string;
+  contract_id: string | null;
+  vendor_id: string | null;
+  user_id: string;
+  body: string;
   created_at: string;
   updated_at: string;
 }
@@ -240,6 +291,11 @@ export interface ContractListItem {
   expiry_date: string | null;
   created_at: string;
   file_name: string;
+  cost_centre: string | null;
+  annual_value: number | null;
+  mm_owner: string | null;
+  on_file: boolean;
+  notice_deadline: string | null;
 }
 
 export interface DashboardStats {
@@ -247,6 +303,43 @@ export interface DashboardStats {
   pending_review: number;
   expiring_soon: number;
   recently_added: number;
+  renewal_action_required: number;
+  obligations_overdue: number;
+  no_contract_on_file: number;
+  spend_approaching_cap: number;
+}
+
+export interface VendorDetailData {
+  vendor: Vendor;
+  contracts: Contract[];
+  invoices: Invoice[];
+  discussions: Discussion[];
+}
+
+// ---------------------------------------------------------------------------
+// AI Agent Result Types
+// ---------------------------------------------------------------------------
+
+export interface EsgFinding {
+  label: string;
+  value: string;
+  status: 'confirmed' | 'partial' | 'not-found';
+  source_text: string;
+  source_url: string;
+}
+
+export interface EsgSearchResult {
+  summary: string;
+  findings: EsgFinding[];
+}
+
+export interface NewsItem {
+  headline: string;
+  url: string;
+  source: string;
+  date: string;
+  snippet: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
 }
 
 // ---------------------------------------------------------------------------
@@ -260,6 +353,9 @@ export interface ContractFilters {
   extraction_status?: ExtractionStatus;
   date_from?: string;
   date_to?: string;
+  cost_centre?: string;
+  mm_owner?: string;
+  on_file?: boolean;
 }
 
 export interface PaginatedResponse<T> {

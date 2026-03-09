@@ -209,9 +209,9 @@ export function ContractTable({
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
           Try adjusting your search or filters, or upload a new contract.
         </p>
-        <Link href="/upload" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'mt-4' })}>
+        <Link href="/counterparties" className={buttonVariants({ variant: 'outline', size: 'sm', className: 'mt-4' })}>
           <Upload className="mr-2 h-4 w-4" />
-          Upload contract
+          Add contract
         </Link>
       </div>
     );

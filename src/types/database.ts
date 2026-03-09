@@ -78,6 +78,11 @@ export type Database = {
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
+          cost_centre: string | null;
+          annual_value: number | null;
+          mm_owner: string | null;
+          on_file: boolean;
+          notice_deadline: string | null;
         };
         Insert: {
           id?: string;
@@ -105,6 +110,11 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          cost_centre?: string | null;
+          annual_value?: number | null;
+          mm_owner?: string | null;
+          on_file?: boolean;
+          notice_deadline?: string | null;
         };
         Update: {
           id?: string;
@@ -132,6 +142,11 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+          cost_centre?: string | null;
+          annual_value?: number | null;
+          mm_owner?: string | null;
+          on_file?: boolean;
+          notice_deadline?: string | null;
         };
         Relationships: [];
       };
@@ -180,6 +195,8 @@ export type Database = {
           assigned_to: string | null;
           created_at: string;
           updated_at: string;
+          risk: string | null;
+          category: string | null;
         };
         Insert: {
           id?: string;
@@ -192,6 +209,8 @@ export type Database = {
           assigned_to?: string | null;
           created_at?: string;
           updated_at?: string;
+          risk?: string | null;
+          category?: string | null;
         };
         Update: {
           id?: string;
@@ -204,6 +223,8 @@ export type Database = {
           assigned_to?: string | null;
           created_at?: string;
           updated_at?: string;
+          risk?: string | null;
+          category?: string | null;
         };
         Relationships: [];
       };
@@ -357,6 +378,35 @@ export type Database = {
           sync_error: string | null;
           created_at: string;
           updated_at: string;
+          legal_name: string | null;
+          trading_name: string | null;
+          industry: string | null;
+          abn: string | null;
+          gst_registered: boolean;
+          website: string | null;
+          logo_url: string | null;
+          currency: string;
+          payment_terms: string | null;
+          default_gl_code: string | null;
+          default_tax_code: string | null;
+          contact_name: string | null;
+          contact_title: string | null;
+          contact_email: string | null;
+          contact_phone: string | null;
+          address_street: string | null;
+          address_city: string | null;
+          address_country: string;
+          bank_account_name: string | null;
+          bank_bsb: string | null;
+          bank_account_number: string | null;
+          bank_name: string | null;
+          bank_verified: boolean;
+          bank_swift: string | null;
+          bank_iban: string | null;
+          ai_description: string | null;
+          esg_data: Json;
+          esg_summary: string | null;
+          esg_updated_at: string | null;
         };
         Insert: {
           id?: string;
@@ -372,6 +422,35 @@ export type Database = {
           sync_error?: string | null;
           created_at?: string;
           updated_at?: string;
+          legal_name?: string | null;
+          trading_name?: string | null;
+          industry?: string | null;
+          abn?: string | null;
+          gst_registered?: boolean;
+          website?: string | null;
+          logo_url?: string | null;
+          currency?: string;
+          payment_terms?: string | null;
+          default_gl_code?: string | null;
+          default_tax_code?: string | null;
+          contact_name?: string | null;
+          contact_title?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          address_street?: string | null;
+          address_city?: string | null;
+          address_country?: string;
+          bank_account_name?: string | null;
+          bank_bsb?: string | null;
+          bank_account_number?: string | null;
+          bank_name?: string | null;
+          bank_verified?: boolean;
+          bank_swift?: string | null;
+          bank_iban?: string | null;
+          ai_description?: string | null;
+          esg_data?: Json;
+          esg_summary?: string | null;
+          esg_updated_at?: string | null;
         };
         Update: {
           id?: string;
@@ -387,6 +466,35 @@ export type Database = {
           sync_error?: string | null;
           created_at?: string;
           updated_at?: string;
+          legal_name?: string | null;
+          trading_name?: string | null;
+          industry?: string | null;
+          abn?: string | null;
+          gst_registered?: boolean;
+          website?: string | null;
+          logo_url?: string | null;
+          currency?: string;
+          payment_terms?: string | null;
+          default_gl_code?: string | null;
+          default_tax_code?: string | null;
+          contact_name?: string | null;
+          contact_title?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          address_street?: string | null;
+          address_city?: string | null;
+          address_country?: string;
+          bank_account_name?: string | null;
+          bank_bsb?: string | null;
+          bank_account_number?: string | null;
+          bank_name?: string | null;
+          bank_verified?: boolean;
+          bank_swift?: string | null;
+          bank_iban?: string | null;
+          ai_description?: string | null;
+          esg_data?: Json;
+          esg_summary?: string | null;
+          esg_updated_at?: string | null;
         };
         Relationships: [];
       };
@@ -477,6 +585,7 @@ export type Database = {
           last_synced_at: string | null;
           created_at: string;
           updated_at: string;
+          date_paid: string | null;
         };
         Insert: {
           id?: string;
@@ -495,6 +604,7 @@ export type Database = {
           last_synced_at?: string | null;
           created_at?: string;
           updated_at?: string;
+          date_paid?: string | null;
         };
         Update: {
           id?: string;
@@ -511,6 +621,37 @@ export type Database = {
           due_date?: string | null;
           netsuite_data?: Json | null;
           last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          date_paid?: string | null;
+        };
+        Relationships: [];
+      };
+      discussions: {
+        Row: {
+          id: string;
+          contract_id: string | null;
+          vendor_id: string | null;
+          user_id: string;
+          body: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          contract_id?: string | null;
+          vendor_id?: string | null;
+          user_id: string;
+          body: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          contract_id?: string | null;
+          vendor_id?: string | null;
+          user_id?: string;
+          body?: string;
           created_at?: string;
           updated_at?: string;
         };

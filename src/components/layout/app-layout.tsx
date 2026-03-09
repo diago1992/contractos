@@ -1,25 +1,24 @@
 "use client";
 
-// Main application layout wrapper
-// Combines Sidebar + Topbar + main content area
-// Sidebar is fixed, content scrolls
-
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 
 interface AppLayoutProps {
   children: React.ReactNode;
+  title?: string;
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout({ children, title }: AppLayoutProps) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app">
       <Sidebar />
-      <div className="lg:pl-64">
-        <Topbar />
-        <main className="p-6 lg:p-8">
-          {children}
-        </main>
+      <div className="main">
+        <Topbar title={title} />
+        <div className="content">
+          <div className="page">
+            {children}
+          </div>
+        </div>
       </div>
     </div>
   );

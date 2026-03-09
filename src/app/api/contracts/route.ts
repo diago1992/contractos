@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("contracts")
       .select(
-        "id, title, counterparty_name, document_type, status, extraction_status, expiry_date, created_at, file_name",
+        "id, title, counterparty_name, document_type, status, extraction_status, effective_date, expiry_date, created_at, file_name, cost_centre, annual_value, mm_owner, on_file, notice_deadline",
         { count: "exact" }
       )
       .is("deleted_at", null)
