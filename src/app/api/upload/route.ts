@@ -20,6 +20,7 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const vendorId = formData.get("vendor_id") as string | null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -62,6 +63,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Look up vendor name if vendor_id provided
+    let counterpartyName: string | null = null;
+    if (vendorId) {
+      const { data: vendor } = await adminClient
+        .from("vendors")
+        .select("name")
+        .eq("id", vendorId)
+        .single();
+      counterpartyName = vendor?.name ?? null;
+    }
+
     // Create contract record using admin client (bypasses RLS race condition
     // where the user's profile row may not yet exist after first OAuth login)
     const { data: contract, error: insertError } = await adminClient
@@ -75,6 +87,7 @@ export async function POST(request: Request) {
         uploaded_by: user.id,
         status: "draft" as ContractStatus,
         extraction_status: "pending" as ExtractionStatus,
+        ...(counterpartyName ? { counterparty_name: counterpartyName } : {}),
       })
       .select("id")
       .single();
@@ -99,6 +112,14 @@ export async function POST(request: Request) {
         file_type: file.type,
       },
     });
+
+    // Link contract to vendor if vendor_id provided
+    if (vendorId) {
+      await adminClient.from("contract_vendors").insert({
+        contract_id: contract.id,
+        vendor_id: vendorId,
+      });
+    }
 
     // Notify user of upload
     publishNotification({

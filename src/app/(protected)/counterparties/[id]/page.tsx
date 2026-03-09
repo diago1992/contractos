@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useRef, type ChangeEvent } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { AppLayout } from '@/components/layout/app-layout';
 import { VendorHero } from '@/components/vendors/vendor-hero';
@@ -24,6 +25,32 @@ export default function CounterpartyDetailPage() {
   const extractTerms = useExtractTerms();
   const extractObligations = useExtractObligations();
   const supabase = createClient();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('vendor_id', id);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'Upload failed');
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['vendor-detail', id] });
+    } catch {
+      alert('Upload failed');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
 
   const firstContract = data?.contracts[0];
 
@@ -260,7 +287,10 @@ export default function CounterpartyDetailPage() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
               <span style={{ fontSize: 13, color: 'var(--text-50)' }}>{contracts.length} document(s)</span>
-              <button className="btn-primary" onClick={() => { /* TODO: inline file upload */ }}>Upload Document</button>
+              <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                {uploading ? 'Uploading...' : 'Upload Document'}
+              </button>
+              <input ref={fileInputRef} type="file" accept=".pdf,.docx" style={{ display: 'none' }} onChange={handleFileUpload} />
             </div>
             {contracts.length > 0 ? (
               <div className="table-wrap">
@@ -364,7 +394,7 @@ export default function CounterpartyDetailPage() {
                   <td>{inv.invoice_date ? format(new Date(inv.invoice_date), 'dd MMM yyyy') : '—'}</td>
                   <td>{inv.due_date ? format(new Date(inv.due_date), 'dd MMM yyyy') : '—'}</td>
                   <td>
-                    <span className={`badge ${inv.status === 'paid_in_full' ? 'paid' : inv.status === 'overdue' ? 'overdue' : inv.status === 'open' ? 'open' : 'draft'}`}>
+                    <span className={`badge ${inv.status === 'paid_in_full' ? 'paid' : inv.status === 'overdue' ? 'overdue' : inv.status === 'open' ? 'open' : inv.status === 'partially_paid' ? 'expiring' : 'draft'}`}>
                       {inv.status.replace(/_/g, ' ')}
                     </span>
                   </td>
