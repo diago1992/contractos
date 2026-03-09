@@ -1,14 +1,25 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { NewsItem } from '@/types/contracts';
 
+// In-memory cache: vendor name → { articles, timestamp }
+const newsCache = new Map<string, { articles: NewsItem[]; ts: number }>();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 export async function searchVendorNews(vendorName: string): Promise<NewsItem[]> {
+  // Check cache
+  const key = vendorName.toLowerCase().trim();
+  const cached = newsCache.get(key);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.articles;
+  }
+
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2048,
     tools: [
-      { type: 'web_search_20250305', name: 'web_search', max_uses: 5 },
+      { type: 'web_search_20250305', name: 'web_search', max_uses: 3 },
       {
         name: 'save_news_results',
         description: 'Save news articles found about a vendor',
@@ -62,8 +73,8 @@ Find up to 6 recent articles, then save them using the save_news_results tool. C
   }
 
   const input = toolUse.input as Record<string, unknown>;
-  const articles = Array.isArray(input.articles) ? input.articles : [];
-  return articles.map((a: Record<string, unknown>) => ({
+  const rawArticles = Array.isArray(input.articles) ? input.articles : [];
+  const articles = rawArticles.map((a: Record<string, unknown>) => ({
     headline: String(a.headline || ''),
     url: String(a.url || ''),
     source: String(a.source || ''),
@@ -71,4 +82,9 @@ Find up to 6 recent articles, then save them using the save_news_results tool. C
     snippet: String(a.snippet || ''),
     sentiment: (['positive', 'neutral', 'negative'].includes(String(a.sentiment)) ? String(a.sentiment) : 'neutral') as 'positive' | 'neutral' | 'negative',
   }));
+
+  // Cache results
+  newsCache.set(key, { articles, ts: Date.now() });
+
+  return articles;
 }
