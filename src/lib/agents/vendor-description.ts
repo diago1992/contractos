@@ -11,8 +11,8 @@ export async function generateVendorDescription(
     : '';
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 512,
     messages: [{
       role: 'user',
       content: `Write a brief (2-3 sentences) professional description of "${vendorName}" as a vendor/supplier, suitable for an internal contract management system. Focus on what they do, their relevance to MoneyMe (an Australian financial services company), and any notable aspects of the business relationship.${contextInfo}

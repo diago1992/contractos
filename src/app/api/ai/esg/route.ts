@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { searchVendorEsg } from "@/lib/agents/esg-search";
 
 export async function POST(request: Request) {
@@ -22,7 +22,9 @@ export async function POST(request: Request) {
 
     const result = await searchVendorEsg(vendor_name);
 
-    const { error } = await supabase
+    // Use admin client to bypass RLS for vendor update
+    const admin = createAdminClient();
+    const { error } = await admin
       .from("vendors")
       .update({
         esg_data: JSON.parse(JSON.stringify(result)),

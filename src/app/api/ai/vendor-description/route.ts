@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { generateVendorDescription } from "@/lib/agents/vendor-description";
 
 export async function POST(request: Request) {
@@ -20,8 +20,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch vendor name from DB
-    const { data: vendor, error: fetchError } = await supabase
+    // Use admin client to bypass RLS for both read and write
+    const admin = createAdminClient();
+
+    const { data: vendor, error: fetchError } = await admin
       .from("vendors")
       .select("name, industry")
       .eq("id", vendor_id)
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
       industry: vendor.industry ?? undefined,
     });
 
-    const { error } = await supabase
+    const { error } = await admin
       .from("vendors")
       .update({ ai_description: description })
       .eq("id", vendor_id);
