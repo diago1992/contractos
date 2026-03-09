@@ -6,7 +6,7 @@ import { VendorSelector } from '@/components/news/vendor-selector';
 import { NewsPanel } from '@/components/news/news-panel';
 import { useVendorNews } from '@/hooks/use-ai-features';
 
-const defaultVendors = ['Salesforce', 'AWS', 'Equifax', 'Deloitte', 'Twilio', 'KPMG'];
+const defaultVendors = ['AWS Australia Pty Ltd', 'TechBuild Solutions', 'FinanceCore Ltd', 'Dexus Property Group', 'Salesforce.com', 'Tableau Software'];
 
 export default function NewsPage() {
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
