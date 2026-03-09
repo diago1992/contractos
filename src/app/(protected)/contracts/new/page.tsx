@@ -5,8 +5,18 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppLayout } from '@/components/layout/app-layout';
 import { useVendors } from '@/hooks/use-vendors';
+import { createClient } from '@/lib/supabase/client';
 
-type UploadStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
+type UploadStep = 'idle' | 'uploading' | 'processing' | 'extracting' | 'done' | 'error';
+
+const STEP_LABELS: Record<UploadStep, string> = {
+  idle: '',
+  uploading: 'Uploading file to storage...',
+  processing: 'Starting AI analysis...',
+  extracting: 'Extracting terms, dates & obligations...',
+  done: 'Processing complete!',
+  error: '',
+};
 
 export default function NewContractPage() {
   const router = useRouter();
@@ -17,12 +27,12 @@ export default function NewContractPage() {
   const [vendorSearch, setVendorSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<UploadStatus>('idle');
+  const [step, setStep] = useState<UploadStep>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [contractId, setContractId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const selectedVendor = vendors?.find(v => v.id === selectedVendorId);
+  const isProcessing = step === 'uploading' || step === 'processing' || step === 'extracting';
 
   const filteredVendors = vendors?.filter(v =>
     v.name.toLowerCase().includes(vendorSearch.toLowerCase())
@@ -40,14 +50,36 @@ export default function NewContractPage() {
     if (f) setFile(f);
   }, []);
 
+  const pollExtractionStatus = async (contractId: string): Promise<'extracted' | 'failed'> => {
+    const supabase = createClient();
+    const maxAttempts = 60; // 2 minutes max
+    for (let i = 0; i < maxAttempts; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const { data } = await supabase
+        .from('contracts')
+        .select('extraction_status')
+        .eq('id', contractId)
+        .single();
+
+      if (data?.extraction_status === 'extracted' || data?.extraction_status === 'verified') {
+        return 'extracted';
+      }
+      if (data?.extraction_status === 'failed') {
+        return 'failed';
+      }
+      // still processing — continue polling
+    }
+    return 'failed'; // timeout
+  };
+
   const handleUpload = async () => {
     if (!file || !selectedVendorId) return;
 
-    setStatus('uploading');
+    setStep('uploading');
     setErrorMsg('');
 
     try {
-      // Step 1: Upload
+      // Step 1: Upload file
       const formData = new FormData();
       formData.append('file', file);
       formData.append('vendor_id', selectedVendorId);
@@ -58,34 +90,38 @@ export default function NewContractPage() {
         throw new Error(err.error || 'Upload failed');
       }
 
-      const { id } = await uploadRes.json();
-      setContractId(id);
+      const { id: contractId } = await uploadRes.json();
 
       // Step 2: Trigger AI processing
-      setStatus('processing');
-      const processRes = await fetch(`/api/process/${id}`, { method: 'POST' });
-      if (!processRes.ok) {
+      setStep('processing');
+      const processRes = await fetch(`/api/process/${contractId}`, { method: 'POST' });
+      if (!processRes.ok && processRes.status !== 409) {
         const err = await processRes.json();
-        // 409 means already processing — that's fine
-        if (processRes.status !== 409) {
-          throw new Error(err.error || 'Processing failed');
-        }
+        throw new Error(err.error || 'Processing failed to start');
       }
 
-      setStatus('done');
+      // Step 3: Poll for completion
+      setStep('extracting');
+      const result = await pollExtractionStatus(contractId);
+
+      if (result === 'extracted') {
+        setStep('done');
+      } else {
+        throw new Error('AI processing failed or timed out. You can retry from the counterparty page.');
+      }
     } catch (err) {
-      setStatus('error');
+      setStep('error');
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong');
     }
   };
 
-  const statusLabel: Record<UploadStatus, string> = {
-    idle: '',
-    uploading: 'Uploading file...',
-    processing: 'AI is analysing the contract...',
-    done: 'Processing complete!',
-    error: errorMsg || 'An error occurred',
-  };
+  const stepIndex = (s: UploadStep) => ['uploading', 'processing', 'extracting', 'done'].indexOf(s);
+  const steps = [
+    { key: 'uploading', label: 'Upload' },
+    { key: 'processing', label: 'Analyse' },
+    { key: 'extracting', label: 'Extract' },
+    { key: 'done', label: 'Complete' },
+  ];
 
   return (
     <AppLayout title="New Contract">
@@ -127,7 +163,7 @@ export default function NewContractPage() {
                 color: 'var(--text)',
                 boxSizing: 'border-box',
               }}
-              disabled={status !== 'idle'}
+              disabled={isProcessing || step === 'done'}
             />
             {showDropdown && filteredVendors.length > 0 && (
               <div style={{
@@ -181,13 +217,13 @@ export default function NewContractPage() {
             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={() => status === 'idle' && fileInputRef.current?.click()}
+            onClick={() => step === 'idle' && fileInputRef.current?.click()}
             style={{
               border: `2px dashed ${dragOver ? 'var(--teal)' : 'rgba(26,46,36,0.15)'}`,
               borderRadius: 10,
               padding: '32px 20px',
               textAlign: 'center',
-              cursor: status === 'idle' ? 'pointer' : 'default',
+              cursor: step === 'idle' ? 'pointer' : 'default',
               background: dragOver ? 'rgba(26,138,90,0.04)' : 'var(--mm-bg)',
               transition: 'all 0.15s',
             }}
@@ -222,8 +258,58 @@ export default function NewContractPage() {
           />
         </div>
 
-        {/* Status Indicator */}
-        {status !== 'idle' && (
+        {/* Step Progress */}
+        {step !== 'idle' && step !== 'error' && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              {steps.map((s, i) => {
+                const current = stepIndex(step);
+                const isComplete = i < current;
+                const isCurrent = i === current;
+                return (
+                  <div key={s.key} style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      margin: '0 auto 4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: isComplete ? 'var(--teal)' : isCurrent ? 'var(--mm-surface)' : 'rgba(26,46,36,0.08)',
+                      color: isComplete || isCurrent ? '#fff' : 'var(--text-50)',
+                      transition: 'all 0.3s',
+                    }}>
+                      {isComplete ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      ) : (
+                        i + 1
+                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: isCurrent ? 'var(--text)' : 'var(--text-50)', fontWeight: isCurrent ? 600 : 400 }}>
+                      {s.label}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Progress bar */}
+            <div style={{ height: 3, background: 'rgba(26,46,36,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                background: step === 'done' ? 'var(--teal)' : 'var(--mm-surface)',
+                borderRadius: 2,
+                width: `${((stepIndex(step) + (step === 'done' ? 1 : 0.5)) / steps.length) * 100}%`,
+                transition: 'width 0.5s ease',
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* Status Message */}
+        {step !== 'idle' && (
           <div style={{
             padding: '12px 16px',
             borderRadius: 8,
@@ -233,22 +319,25 @@ export default function NewContractPage() {
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            background: status === 'error' ? 'rgba(217,48,37,0.08)' : status === 'done' ? 'rgba(26,138,90,0.08)' : 'rgba(26,46,36,0.04)',
-            color: status === 'error' ? 'var(--red)' : status === 'done' ? 'var(--teal)' : 'var(--text-80)',
+            background: step === 'error' ? 'rgba(217,48,37,0.08)' : step === 'done' ? 'rgba(26,138,90,0.08)' : 'rgba(26,46,36,0.04)',
+            color: step === 'error' ? 'var(--red)' : step === 'done' ? 'var(--teal)' : 'var(--text-80)',
           }}>
-            {(status === 'uploading' || status === 'processing') && (
+            {isProcessing && (
               <span className="spinner" style={{ width: 16, height: 16 }} />
             )}
-            {status === 'done' && (
+            {step === 'done' && (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             )}
-            {statusLabel[status]}
+            {step === 'error' && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            )}
+            {step === 'error' ? errorMsg : STEP_LABELS[step]}
           </div>
         )}
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8 }}>
-          {status === 'done' ? (
+          {step === 'done' ? (
             <button
               className="btn-primary"
               onClick={() => router.push(`/counterparties/${selectedVendorId}`)}
@@ -256,14 +345,33 @@ export default function NewContractPage() {
             >
               View Contract
             </button>
+          ) : step === 'error' ? (
+            <>
+              <button
+                className="btn-secondary"
+                onClick={() => { setStep('idle'); setErrorMsg(''); }}
+                style={{ flex: 1 }}
+              >
+                Try Again
+              </button>
+              {selectedVendorId && (
+                <button
+                  className="btn-primary"
+                  onClick={() => router.push(`/counterparties/${selectedVendorId}`)}
+                  style={{ flex: 1 }}
+                >
+                  View Counterparty
+                </button>
+              )}
+            </>
           ) : (
             <button
               className="btn-primary"
               onClick={handleUpload}
-              disabled={!file || !selectedVendorId || status === 'uploading' || status === 'processing'}
-              style={{ flex: 1, opacity: (!file || !selectedVendorId || status === 'uploading' || status === 'processing') ? 0.5 : 1 }}
+              disabled={!file || !selectedVendorId || isProcessing}
+              style={{ flex: 1, opacity: (!file || !selectedVendorId || isProcessing) ? 0.5 : 1 }}
             >
-              {status === 'uploading' || status === 'processing' ? 'Processing...' : 'Upload & Process'}
+              {isProcessing ? 'Processing...' : 'Upload & Process'}
             </button>
           )}
         </div>

@@ -19,7 +19,7 @@ export function NewsPanel({ articles, isLoading }: NewsPanelProps) {
   if (articles.length === 0) {
     return (
       <p style={{ fontSize: 13, color: 'var(--text-50)', textAlign: 'center', padding: 40 }}>
-        Select a vendor and click Refresh to search for news.
+        Select a vendor to search for risk-relevant news.
       </p>
     );
   }
