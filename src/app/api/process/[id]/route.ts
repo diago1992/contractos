@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { processContract } from "@/lib/agents/ingestion";
@@ -55,9 +56,14 @@ export async function POST(
       );
     }
 
-    // Process asynchronously — contract is already marked 'processing'
-    processContract(id).catch((err) => {
-      console.error(`Failed to process contract ${id}:`, err);
+    // Use after() to keep the serverless function alive for background processing.
+    // Without this, Vercel kills the function after the response is sent.
+    after(async () => {
+      try {
+        await processContract(id);
+      } catch (err) {
+        console.error(`Failed to process contract ${id}:`, err);
+      }
     });
 
     return NextResponse.json({ status: "processing" }, { status: 202 });
