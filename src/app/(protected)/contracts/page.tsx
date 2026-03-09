@@ -52,7 +52,7 @@ export default function ContractsPage() {
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn-secondary">Export CSV</button>
-            <Link href="/counterparties" className="btn-primary">+ New Contract</Link>
+            <Link href="/contracts/new" className="btn-primary">+ New Contract</Link>
           </div>
         </div>
         <ColumnFilters

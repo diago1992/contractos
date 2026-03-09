@@ -43,6 +43,11 @@ export default function CounterpartyDetailPage() {
         alert(err.error || 'Upload failed');
         return;
       }
+      const { id: contractId } = await res.json();
+
+      // Auto-trigger AI processing
+      fetch(`/api/process/${contractId}`, { method: 'POST' }).catch(() => {});
+
       queryClient.invalidateQueries({ queryKey: ['vendor-detail', id] });
     } catch {
       alert('Upload failed');

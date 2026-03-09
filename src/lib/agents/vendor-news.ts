@@ -38,15 +38,18 @@ export async function searchVendorNews(vendorName: string): Promise<NewsItem[]> 
     tool_choice: { type: 'auto' },
     messages: [{
       role: 'user',
-      content: `Search for recent news about "${vendorName}" that would be relevant to a business relationship. Focus on:
-- Financial news (earnings, funding, acquisitions)
-- Legal/regulatory issues
-- Product/service announcements
-- Leadership changes
-- Security incidents or data breaches
-- Partnerships and major contracts
+      content: `Search for recent news about "${vendorName}" that would be relevant to managing a commercial contract relationship. Focus on:
+- Financial health: earnings, credit rating changes, funding, bankruptcy risk
+- Legal & regulatory: lawsuits, fines, regulatory actions, compliance failures
+- Security & data: breaches, incidents, vulnerabilities
+- Operational risk: outages, service disruptions, leadership departures
+- M&A activity: acquisitions, mergers, being acquired (may affect contract continuity)
+- Pricing & licensing: price changes, licensing model changes
 
-Find up to 6 recent articles, then save them using the save_news_results tool. Classify each article's sentiment as positive, neutral, or negative from the perspective of a customer/partner.`,
+Do NOT include generic product announcements, marketing content, or press releases.
+Only include news that would inform risk assessment or renewal decisions.
+
+Find up to 6 recent articles, then save them using the save_news_results tool. Classify each article's sentiment as positive, neutral, or negative from the perspective of a customer evaluating vendor risk.`,
     }],
   });
 

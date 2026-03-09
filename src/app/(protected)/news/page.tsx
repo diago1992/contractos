@@ -5,12 +5,19 @@ import { AppLayout } from '@/components/layout/app-layout';
 import { VendorSelector } from '@/components/news/vendor-selector';
 import { NewsPanel } from '@/components/news/news-panel';
 import { useVendorNews } from '@/hooks/use-ai-features';
-
-const defaultVendors = ['AWS Australia Pty Ltd', 'TechBuild Solutions', 'FinanceCore Ltd', 'Dexus Property Group', 'Salesforce.com', 'Tableau Software'];
+import { useVendors } from '@/hooks/use-vendors';
 
 export default function NewsPage() {
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const vendorNews = useVendorNews();
+  const { data: vendors } = useVendors();
+
+  const vendorNames = vendors?.map(v => v.name) ?? [];
+
+  const handleSelectVendor = (vendor: string) => {
+    setSelectedVendor(vendor);
+    vendorNews.mutate(vendor);
+  };
 
   const handleRefresh = () => {
     if (selectedVendor) {
@@ -22,7 +29,7 @@ export default function NewsPage() {
     <AppLayout title="Vendor News">
       <div style={{ marginBottom: 16 }}>
         <p style={{ fontSize: 13, color: 'var(--text-50)', marginBottom: 12 }}>
-          AI-powered vendor news monitoring. Select a vendor and click Refresh to search for recent news.
+          AI-powered vendor risk monitoring. Select a vendor to search for risk-relevant news.
         </p>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <span style={{ fontSize: 13, color: 'var(--text-50)' }}>
@@ -46,9 +53,9 @@ export default function NewsPage() {
       </div>
 
       <VendorSelector
-        vendors={defaultVendors}
+        vendors={vendorNames}
         selected={selectedVendor}
-        onSelect={setSelectedVendor}
+        onSelect={handleSelectVendor}
       />
 
       <div className="panel">
