@@ -36,6 +36,19 @@ export function EsgPanel({ vendor }: EsgPanelProps) {
         </button>
       </div>
 
+      {esgSearch.isError && (
+        <div style={{
+          padding: '10px 14px',
+          borderRadius: 8,
+          marginBottom: 12,
+          fontSize: 13,
+          background: 'rgba(217,48,37,0.08)',
+          color: 'var(--red)',
+        }}>
+          ESG search failed. Please try again.
+        </div>
+      )}
+
       {vendor.esg_summary && (
         <div className="ai-desc-box" style={{ marginBottom: 16 }}>
           <div className="ai-desc-icon">

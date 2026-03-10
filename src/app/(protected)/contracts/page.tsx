@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { AppLayout } from '@/components/layout/app-layout';
 import { ColumnFilters } from '@/components/contracts/column-filters';
 import { useContracts } from '@/hooks/use-contracts';
+import { createClient } from '@/lib/supabase/client';
 import type { ContractFilters } from '@/types/contracts';
 
 const filterConfig = [
@@ -28,6 +29,7 @@ const filterConfig = [
 export default function ContractsPage() {
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
 
   const filters: ContractFilters = useMemo(() => ({
     search: filterValues.search || undefined,
@@ -43,6 +45,55 @@ export default function ContractsPage() {
   const formatCurrency = (val: number | null) =>
     val ? `$${val.toLocaleString()}` : '—';
 
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const supabase = createClient();
+      let query = supabase
+        .from('contracts')
+        .select('id, title, counterparty_name, document_type, status, extraction_status, effective_date, expiry_date, cost_centre, mm_owner, annual_value, on_file, created_at')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (filters.search) query = query.textSearch('search_vector', filters.search, { type: 'websearch' });
+      if (filters.status) query = query.eq('status', filters.status);
+      if (filters.cost_centre) query = query.eq('cost_centre', filters.cost_centre);
+      if (filters.mm_owner) query = query.eq('mm_owner', filters.mm_owner);
+      if (filters.on_file !== undefined) query = query.eq('on_file', filters.on_file);
+
+      const { data: rows } = await query;
+      if (!rows || rows.length === 0) return;
+
+      const headers = ['ID', 'Title', 'Counterparty', 'Type', 'Status', 'Extraction', 'Start Date', 'End Date', 'Cost Centre', 'Owner', 'Annual Value', 'On File', 'Created'];
+      const csvRows = rows.map(c => [
+        c.id,
+        `"${(c.title || '').replace(/"/g, '""')}"`,
+        `"${(c.counterparty_name || '').replace(/"/g, '""')}"`,
+        c.document_type || '',
+        c.status,
+        c.extraction_status,
+        c.effective_date || '',
+        c.expiry_date || '',
+        c.cost_centre || '',
+        c.mm_owner || '',
+        c.annual_value ?? '',
+        c.on_file ? 'Yes' : 'No',
+        c.created_at,
+      ].join(','));
+
+      const csv = [headers.join(','), ...csvRows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `contracts-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <AppLayout title="Contracts">
       <div className="table-wrap">
@@ -51,7 +102,10 @@ export default function ContractsPage() {
             {data ? `${data.count} contracts` : 'Loading...'}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-secondary">Export CSV</button>
+            <button className="btn-secondary" onClick={handleExportCsv} disabled={exporting}>
+              {exporting ? 'Exporting...' : 'Export CSV'}
+            </button>
+            <Link href="/contracts/batch" className="btn-secondary">Batch Upload</Link>
             <Link href="/contracts/new" className="btn-primary">+ New Contract</Link>
           </div>
         </div>

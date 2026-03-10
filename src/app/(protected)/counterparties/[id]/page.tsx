@@ -16,7 +16,10 @@ import { AiDescription } from '@/components/vendors/ai-description';
 import { DiscussionThread } from '@/components/discussions/discussion-thread';
 import { useVendorDetail } from '@/hooks/use-vendor-detail';
 import { useExtractTerms, useExtractObligations } from '@/hooks/use-ai-features';
+import { pollExtractionStatus } from '@/lib/utils/poll-extraction';
 import type { CommercialTerm, Obligation, AuditLogEntry } from '@/types/contracts';
+
+type DocUploadStep = 'idle' | 'uploading' | 'processing' | 'extracting' | 'done' | 'error';
 
 export default function CounterpartyDetailPage() {
   const params = useParams();
@@ -27,12 +30,16 @@ export default function CounterpartyDetailPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const [docUploadStep, setDocUploadStep] = useState<DocUploadStep>('idle');
+  const [docUploadError, setDocUploadError] = useState('');
+
+  const isDocUploading = docUploadStep !== 'idle' && docUploadStep !== 'done' && docUploadStep !== 'error';
 
   async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+    setDocUploadStep('uploading');
+    setDocUploadError('');
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -40,19 +47,34 @@ export default function CounterpartyDetailPage() {
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error || 'Upload failed');
-        return;
+        throw new Error(err.error || 'Upload failed');
       }
       const { id: contractId } = await res.json();
 
-      // Auto-trigger AI processing
-      fetch(`/api/process/${contractId}`, { method: 'POST' }).catch(() => {});
+      // Trigger AI processing
+      setDocUploadStep('processing');
+      const processRes = await fetch(`/api/process/${contractId}`, { method: 'POST' });
+      if (!processRes.ok && processRes.status !== 409) {
+        const err = await processRes.json();
+        throw new Error(err.error || 'Processing failed to start');
+      }
+
+      // Poll for completion
+      setDocUploadStep('extracting');
+      const result = await pollExtractionStatus(contractId);
+      if (result === 'extracted') {
+        setDocUploadStep('done');
+        // Auto-dismiss after 3s
+        setTimeout(() => setDocUploadStep('idle'), 3000);
+      } else {
+        throw new Error('AI processing failed or timed out');
+      }
 
       queryClient.invalidateQueries({ queryKey: ['vendor-detail', id] });
-    } catch {
-      alert('Upload failed');
+    } catch (err) {
+      setDocUploadStep('error');
+      setDocUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
-      setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
@@ -292,11 +314,38 @@ export default function CounterpartyDetailPage() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
               <span style={{ fontSize: 13, color: 'var(--text-50)' }}>{contracts.length} document(s)</span>
-              <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                {uploading ? 'Uploading...' : 'Upload Document'}
+              <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={isDocUploading}>
+                {isDocUploading ? 'Processing...' : 'Upload Document'}
               </button>
               <input ref={fileInputRef} type="file" accept=".pdf,.docx" style={{ display: 'none' }} onChange={handleFileUpload} />
             </div>
+            {docUploadStep !== 'idle' && (
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: 8,
+                marginBottom: 12,
+                fontSize: 13,
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: docUploadStep === 'error' ? 'rgba(217,48,37,0.08)' : docUploadStep === 'done' ? 'rgba(26,138,90,0.08)' : 'rgba(26,46,36,0.04)',
+                color: docUploadStep === 'error' ? 'var(--red)' : docUploadStep === 'done' ? 'var(--teal)' : 'var(--text-80)',
+              }}>
+                {isDocUploading && <span className="spinner" style={{ width: 14, height: 14 }} />}
+                {docUploadStep === 'done' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                {docUploadStep === 'uploading' && 'Uploading file...'}
+                {docUploadStep === 'processing' && 'Starting AI analysis...'}
+                {docUploadStep === 'extracting' && 'Extracting terms, dates & obligations...'}
+                {docUploadStep === 'done' && 'Processing complete!'}
+                {docUploadStep === 'error' && (docUploadError || 'Upload failed')}
+                {docUploadStep === 'error' && (
+                  <button className="btn-secondary" style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: 12 }} onClick={() => setDocUploadStep('idle')}>
+                    Dismiss
+                  </button>
+                )}
+              </div>
+            )}
             {contracts.length > 0 ? (
               <div className="table-wrap">
                 <table>

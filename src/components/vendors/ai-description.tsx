@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from 'react';
 import { useVendorDescription } from '@/hooks/use-ai-features';
 
 interface AiDescriptionProps {
@@ -9,6 +10,18 @@ interface AiDescriptionProps {
 
 export function AiDescription({ vendorId, description }: AiDescriptionProps) {
   const generate = useVendorDescription();
+  const hasAutoTriggered = useRef(false);
+
+  // Auto-generate on first visit if no description exists (debounced 2s)
+  useEffect(() => {
+    if (!description && !generate.isPending && !hasAutoTriggered.current) {
+      hasAutoTriggered.current = true;
+      const timer = setTimeout(() => {
+        generate.mutate(vendorId);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [description, vendorId, generate]);
 
   return (
     <div className="ai-desc-box">
@@ -19,7 +32,18 @@ export function AiDescription({ vendorId, description }: AiDescriptionProps) {
         </svg>
       </div>
       <div className="ai-desc-text" style={{ flex: 1 }}>
-        {description || (
+        {generate.isPending ? (
+          <span style={{ color: 'var(--text-50)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="spinner" style={{ width: 14, height: 14 }} />
+            Generating description...
+          </span>
+        ) : generate.isError ? (
+          <span style={{ color: 'var(--red)' }}>
+            Failed to generate description. Click Regenerate to retry.
+          </span>
+        ) : description ? (
+          description
+        ) : (
           <span style={{ color: 'var(--text-50)' }}>No AI description generated yet.</span>
         )}
       </div>

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { publishNotificationToAllUsers } from '@/lib/notifications';
 
+export const maxDuration = 30;
+
 // ---------------------------------------------------------------------------
 // Tiered escalation thresholds
 // ---------------------------------------------------------------------------
@@ -118,3 +120,6 @@ function getApplicableTier(daysUntilExpiry: number): EscalationTier | null {
   }
   return null;
 }
+
+// Vercel Cron sends GET requests
+export { POST as GET };

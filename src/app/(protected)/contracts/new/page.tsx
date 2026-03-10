@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppLayout } from '@/components/layout/app-layout';
 import { useVendors } from '@/hooks/use-vendors';
-import { createClient } from '@/lib/supabase/client';
+import { pollExtractionStatus } from '@/lib/utils/poll-extraction';
 
 type UploadStep = 'idle' | 'uploading' | 'processing' | 'extracting' | 'done' | 'error';
 
@@ -49,28 +49,6 @@ export default function NewContractPage() {
     const f = e.dataTransfer.files[0];
     if (f) setFile(f);
   }, []);
-
-  const pollExtractionStatus = async (contractId: string): Promise<'extracted' | 'failed'> => {
-    const supabase = createClient();
-    const maxAttempts = 60; // 2 minutes max
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      const { data } = await supabase
-        .from('contracts')
-        .select('extraction_status')
-        .eq('id', contractId)
-        .single();
-
-      if (data?.extraction_status === 'extracted' || data?.extraction_status === 'verified') {
-        return 'extracted';
-      }
-      if (data?.extraction_status === 'failed') {
-        return 'failed';
-      }
-      // still processing — continue polling
-    }
-    return 'failed'; // timeout
-  };
 
   const handleUpload = async () => {
     if (!file || !selectedVendorId) return;

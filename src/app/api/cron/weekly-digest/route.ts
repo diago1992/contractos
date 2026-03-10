@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { WebClient } from '@slack/web-api';
 import { createAdminClient } from '@/lib/supabase/server';
 
+export const maxDuration = 30;
+
 export async function POST(request: NextRequest) {
   // Verify cron secret
   const authHeader = request.headers.get('authorization');
@@ -195,3 +197,6 @@ export async function POST(request: NextRequest) {
     },
   });
 }
+
+// Vercel Cron sends GET requests
+export { POST as GET };
