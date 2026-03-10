@@ -161,17 +161,9 @@ export default function ImportPage() {
   const allDone = files.length > 0 && !isUploading && queuedCount === 0;
 
   return (
-    <AppLayout title="Bulk Import">
-      <Link
-        href="/contracts"
-        style={{ fontSize: 13, color: 'var(--text-50)', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 16, textDecoration: 'none' }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-        Back to Contracts
-      </Link>
-
+    <AppLayout title="Migration">
       <div className="panel" style={{ maxWidth: 800, margin: '0 auto' }}>
-        <div className="panel-title">Bulk Contract Import</div>
+        <div className="panel-title">Contract Migration</div>
         <p style={{ fontSize: 13, color: 'var(--text-50)', marginBottom: 20, marginTop: -8 }}>
           Upload a large backlog of contracts. Files are stored immediately and AI processing runs in the background via a scheduled job — you can close this page and come back later.
         </p>
