@@ -21,7 +21,8 @@ export function AiDescription({ vendorId, description }: AiDescriptionProps) {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [description, vendorId, generate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, vendorId]);
 
   return (
     <div className="ai-desc-box">

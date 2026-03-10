@@ -155,12 +155,11 @@ export async function POST(request: Request) {
         for (let i = 0; i < createdContracts.length; i++) {
           const contract = createdContracts[i];
           try {
-            // Claim for processing
+            // Mark as processing
             await admin
               .from("contracts")
               .update({ extraction_status: "processing" as ExtractionStatus })
-              .eq("id", contract.id)
-              .eq("extraction_status", "pending");
+              .eq("id", contract.id);
 
             await processContract(contract.id);
           } catch (err) {

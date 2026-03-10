@@ -117,23 +117,21 @@ export default function BatchUploadPage() {
         return { ...f, status: 'error', errorMsg: fileError || 'Upload failed' };
       }));
 
-      // Poll extraction status for all uploaded contracts
+      // Poll extraction status sequentially to avoid overwhelming Supabase
       const contractIds = Array.from(contractMap.entries());
-      await Promise.all(
-        contractIds.map(async ([fileName, contractId]) => {
-          const result = await pollExtractionStatus(contractId);
-          setFiles(prev => prev.map(f => {
-            if (f.file.name === fileName) {
-              return {
-                ...f,
-                status: result === 'extracted' ? 'done' : 'error',
-                errorMsg: result === 'failed' ? 'AI processing failed' : undefined,
-              };
-            }
-            return f;
-          }));
-        })
-      );
+      for (const [fileName, contractId] of contractIds) {
+        const result = await pollExtractionStatus(contractId);
+        setFiles(prev => prev.map(f => {
+          if (f.file.name === fileName) {
+            return {
+              ...f,
+              status: result === 'extracted' ? 'done' : 'error',
+              errorMsg: result === 'failed' ? 'AI processing failed' : undefined,
+            };
+          }
+          return f;
+        }));
+      }
     } catch {
       setFiles(prev => prev.map(f => f.status !== 'done' ? { ...f, status: 'error', errorMsg: 'Upload failed' } : f));
     } finally {
