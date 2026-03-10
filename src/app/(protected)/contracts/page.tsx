@@ -105,6 +105,7 @@ export default function ContractsPage() {
             <button className="btn-secondary" onClick={handleExportCsv} disabled={exporting}>
               {exporting ? 'Exporting...' : 'Export CSV'}
             </button>
+            <Link href="/contracts/import" className="btn-secondary">Bulk Import</Link>
             <Link href="/contracts/batch" className="btn-secondary">Batch Upload</Link>
             <Link href="/contracts/new" className="btn-primary">+ New Contract</Link>
           </div>
